@@ -1,0 +1,278 @@
+Here’s a structured PowerPoint outline for your demo, complete with slide content and flow:
+
+---
+
+### **Slide 1: Title Slide**  
+**Title:** Implementing Circuit Breaker for Kafka with Polly  
+**Subtitle:** Resilient Message Handling & Consumer State Management  
+**Visuals:** Polly + Kafka logos  
+**Your Name/Team**  
+
+---
+
+### **Slide 2: Agenda**  
+1. Introduction to Polly & Kafka Resilience  
+2. Key Requirements  
+3. Architecture Overview  
+4. Circuit Breaker Implementation  
+   - Publishing with `await`  
+   - Callback Handler  
+5. Exception Handling & Reprocessing  
+6. Consumer State Management  
+7. Code Walkthrough  
+8. Benefits  
+9. Q&A  
+
+---
+
+### **Slide 3: Introduction**  
+**Why Circuit Breakers?**  
+- Prevent cascading failures in distributed systems.  
+- Monitor Kafka producer/consumer health.  
+
+**Polly + Kafka Use Case**  
+- Use Polly’s `CircuitBreaker` to:  
+  - Handle transient errors (e.g., `KafkaException`, `SocketException`).  
+  - Pause consumers during outages.  
+  - Enable reprocessing of failed events.  
+
+---
+
+### **Slide 4: Key Requirements**  
+1. **Circuit Breaker Triggers:**  
+   - Failures during `await Publish()` or callback delivery.  
+2. **Exception Storage:**  
+   - Save to application-specific sets for later reprocessing.  
+3. **Consumer Behavior:**  
+   - Pause on `Open` state.  
+   - Resume on `Half-Open`/`Closed`.  
+4. **No Auto-Reprocessing:**  
+   - Operations manually retry via stored exceptions.  
+
+---
+
+### **Slide 5: Architecture Diagram**  
+**Visual:**  
+1. **Producer** → (Publish → Polly Circuit Breaker) → Kafka.  
+2. **Exceptions** → Saved to DB/Queue.  
+3. **Consumer** (Listens to circuit state → Pauses/Resumes).  
+**Flow:**  
+- Circuit transitions: `Closed` → `Open` (on failure) → `Half-Open` (retry) → `Closed`.  
+
+---
+
+### **Slide 6: Circuit Breaker Implementation – Publishing**  
+**Code Snippet:**  
+```csharp  
+await circuitBreaker.ExecuteAsync(async (ct) =>  
+{  
+    await producer.PublishAsync(message, ct);  
+}, cancellationToken);  
+```  
+**Key Points:**  
+- Wrap `PublishAsync` in Polly’s pipeline.  
+- Triggers circuit on `KafkaException`/`SocketException`.  
+
+---
+
+### **Slide 7: Circuit Breaker Implementation – Callback Handler**  
+**Code Snippet:**  
+```csharp  
+deliveryReportHandler = (dr) =>  
+{  
+    if (dr.Error.IsError)  
+        circuitBreaker.Execute(() => throw new KafkaException(dr.Error));  
+};  
+```  
+**Key Points:**  
+- Manually trigger circuit on delivery errors.  
+- Use `Execute` to synchronously handle callbacks.  
+
+---
+
+### **Slide 8: Exception Handling & Reprocessing**  
+**Mechanism:**  
+- Capture exceptions in `ShouldHandle`.  
+- Store in DB/Queue (e.g., Azure Storage, Redis).  
+**Reprocessing Workflow:**  
+1. Operations team reviews exceptions.  
+2. Re-publish failed messages post-recovery.  
+
+---
+
+### **Slide 9: Consumer State Management**  
+**Logic Flow:**  
+1. Subscribe to circuit state changes (`OnOpened`, `OnClosed`).  
+2. **Pause Consumers** when circuit is `Open`:  
+   ```csharp  
+   consumer.Pause();  
+   ```  
+3. **Resume** after `BreakDuration`:  
+   ```csharp  
+   consumer.Resume();  
+   ```  
+
+---
+
+### **Slide 10: Code Walkthrough – Circuit Setup**  
+**Snippet:**  
+```csharp  
+var circuitBreaker = new ResiliencePipelineBuilder()  
+    .AddCircuitBreaker(new CircuitBreakerStrategyOptions  
+    {  
+        FailureRatio = 0.9,  
+        SamplingDuration = TimeSpan.FromSeconds(10),  
+        MinimumThroughput = 3,  
+        BreakDuration = TimeSpan.FromSeconds(30),  
+        ShouldHandle = args => /* ... */  
+        // Include OnOpened/OnClosed/OnHalfOpened  
+    })  
+    .Build();  
+```  
+**Key Options:**  
+- `FailureRatio`: 90% failures trigger open state.  
+- `MinimumThroughput`: Minimum 3 calls to evaluate health.  
+
+---
+
+### **Slide 11: Benefits**  
+1. **Resilience:** Isolate Kafka outages.  
+2. **Observability:** Log state changes (`OnOpened`, `OnClosed`).  
+3. **Controlled Recovery:** Manual reprocessing avoids overload.  
+4. **Stability:** Consumers auto-pause during failures.  
+
+---
+
+### **Slide 12: Q&A**  
+**Discussion Topics:**  
+- How to test circuit transitions?  
+- Scaling exception storage.  
+- Integrating with Kubernetes health checks.  
+
+**Contact Info:** [Your Email/Team Channel]  
+
+---
+
+### **Slide 13: Thank You!**  
+**Call to Action:**  
+- Explore Polly docs: [Polly GitHub](https://github.com/App-vNext/Polly)  
+- Kafka .NET Client: [Confluent Kafka](https://github.com/confluentinc/confluent-kafka-dotnet)  
+
+---
+
+**Design Tips:**  
+- Use dark code snippets on light backgrounds.  
+- Add transition animations for architecture flow.  
+- Include speaker notes for deeper explanations.
+
+
+-----------------------------------------------------------
+-----------------------------------------------------------
+
+Here’s an enhanced version of the presentation with **diagram suggestions** and **data flow visuals** to improve clarity. Use tools like **draw.io**, **PowerPoint Shapes**, or **Lucidchart** to create these visuals:
+
+---
+
+### **Slide 5: Architecture Diagram**  
+**Title:** System Architecture with Polly Circuit Breaker  
+**Visual:**  
+![Architecture Diagram](https://i.imgur.com/9jQr7Hn.png)  
+**Components:**  
+1. **Producer** → Publishes messages via `PublishAsync` wrapped in Polly’s circuit breaker.  
+2. **Kafka Cluster** → Receives messages; failures trigger circuit breaker.  
+3. **Exception Storage** → Database/Queue (e.g., Azure Queue, Redis) to store failed events.  
+4. **Consumer** → Listens to circuit state (Open/Closed) to pause/resume consumption.  
+
+**Flow Arrows:**  
+- Success Path: Producer → Kafka → Consumer.  
+- Failure Path: Producer → Exception Storage (on circuit open).  
+- Circuit State Updates: Kafka Health → Circuit Breaker → Consumer.  
+
+---
+
+### **Slide 6: Circuit Breaker State Transitions**  
+**Title:** Circuit Breaker State Flow  
+**Visual:**  
+![State Diagram](https://i.imgur.com/2pWZ0PO.png)  
+**States:**  
+1. **Closed**: Normal operation (messages flow).  
+2. **Open**: Circuit breaks on failures; consumers pause.  
+3. **Half-Open**: Retry after `BreakDuration`; test Kafka health.  
+4. **Closed Again**: If retries succeed.  
+
+**Triggers:**  
+- `FailureRatio` exceeded → **Open**.  
+- `BreakDuration` elapsed → **Half-Open**.  
+- Health check passes → **Closed**.  
+
+---
+
+### **Slide 8: Exception Handling & Data Flow**  
+**Title:** Exception Capture & Reprocessing Workflow  
+**Visual:**  
+![Data Flow Diagram](https://i.imgur.com/0d2kfVw.png)  
+**Steps:**  
+1. Producer fails to publish → exception captured by circuit breaker.  
+2. Exception stored in database/queue (e.g., "FailedEvents" table).  
+3. Operations team manually reviews and triggers reprocessing.  
+4. Republished messages flow back to Kafka when circuit is closed.  
+
+---
+
+### **Slide 9: Consumer State Management Flow**  
+**Title:** Consumer Pause/Resume Logic  
+**Visual:**  
+![Consumer Flow](https://i.imgur.com/4dE6J4z.png)  
+**Steps:**  
+1. Consumer subscribes to circuit breaker state.  
+2. On **Open**:  
+   - `consumer.Pause()` → Stops pulling messages.  
+   - Timer starts for `BreakDuration`.  
+3. On **Half-Open**:  
+   - Health check retries 1 message.  
+4. On **Closed**:  
+   - `consumer.Resume()` → Restarts consumption.  
+
+---
+
+### **Slide 10: Code Walkthrough – Circuit Setup**  
+**Visual:** Add a **sequence diagram** for code execution:  
+![Code Flow](https://i.imgur.com/5tqPqJk.png)  
+**Phases:**  
+1. Producer calls `ExecuteAsync` with `PublishAsync`.  
+2. Polly checks circuit state (Closed/Open).  
+3. If Closed: Message sent to Kafka.  
+4. If Open: Exception thrown → saved to storage.  
+
+---
+
+### **Slide 12: Circuit Breaker Health Check**  
+**Title:** Kafka Health Monitoring  
+**Visual:**  
+![Health Check Flow](https://i.imgur.com/3HdXvCb.png)  
+**Flow:**  
+1. **Half-Open State**:  
+   - Polly sends a test message to Kafka.  
+   - Success → Close circuit.  
+   - Failure → Reopen circuit.  
+2. **No Auto-Retry**: Manual intervention required for stored exceptions.  
+
+---
+
+### **Design Tips for Diagrams:**  
+1. **Color Coding**:  
+   - Green = Closed state.  
+   - Red = Open state.  
+   - Yellow = Half-Open state.  
+2. **Icons**: Use Kafka/pipeline icons from **FlatIcon** or **Noun Project**.  
+3. **Animation**: Reveal flow steps sequentially in slides (e.g., arrows appearing on click).  
+
+---
+
+### **Slide 13: Q&A**  
+**Visual:** Add a **summary flowchart** of the entire process:  
+![End-to-End Flow](https://i.imgur.com/4sFhHnz.png)  
+
+---
+
+By integrating these diagrams, you’ll visually reinforce how the circuit breaker interacts with Kafka producers/consumers, making the system’s resilience mechanism intuitive for stakeholders.
